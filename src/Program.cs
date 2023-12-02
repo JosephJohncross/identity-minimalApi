@@ -2,7 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.HttpResults;
+using src.Services.HRManager;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,7 +13,15 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAuthentication("CookieAuthentication").AddCookie("CookieAuthentication");
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireClaim("Admin"));
+    options.AddPolicy("MustBelongToHRDepartment", policy => policy
+    .RequireClaim("Department", "HR")
+    .Requirements.Add(new ProbationPeriodRequirement(3))
+    );
+});
+builder.Services.AddSingleton<IAuthorizationHandler, ProbationPeriodRequirementHandler>();
 
 var app = builder.Build();
 
@@ -54,7 +64,10 @@ app.MapPost("api/create-user", async (HttpContext context, [FromBody] User user)
         // Claims
         List<Claim> claims = [
             new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Name, user.Name)
+            new Claim(ClaimTypes.Name, user.Name),
+            new Claim("Department", "HR"),
+            new Claim("Admin", "true"),
+            new Claim("EmployeeDate", "2023-05-12")
         ];
 
         // Identity
@@ -73,6 +86,22 @@ app.MapPost("api/create-user", async (HttpContext context, [FromBody] User user)
 .Accepts<User>("application/json")
 ;
 
+app.MapGet("/employees", [Authorize(Policy = "MustBelongToHRDepartment")] (HttpContext context, ClaimsPrincipal claimsPrincipal) =>
+{
+    var _ = context.User;
+    var principal = claimsPrincipal.FindFirst("Department")?.Value;
+    if (principal == "HR")
+    {
+        return Results.Ok("");
+    }
+    return Results.Unauthorized();
+});
+
+app.MapGet("/api/settings", [Authorize(Policy = "AdminOnly")] (HttpContext user) =>
+{
+    var isAuthenticated = user.User;
+    return Results.Ok("changes");
+});
 app.Run();
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
