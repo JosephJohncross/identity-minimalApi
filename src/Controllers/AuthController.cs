@@ -15,7 +15,7 @@ namespace src.Controllers
 
         public static  void MapAuthenticate(this WebApplication app){
             app.MapPost("/authenticate",  (IConfiguration config, [FromBody]Credential credential)=> {
-                if (credential.Email == "josephibochi@gmail.com" && credential.Password == "joseph@1111")
+                if (credential.Email == "testuser@567.com" && credential.Password == "tesuser@56789")
                 {
                     // Claims
                     List<Claim> claims = [
