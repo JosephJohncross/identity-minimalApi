@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using src.Services.HRManager;
 using src.Controllers;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,8 +16,33 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddAuthentication("CookieAuthentication").AddCookie("CookieAuthentication", options => {
-    options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
+
+// For Cookie Authentication
+// builder.Services.AddAuthentication("CookieAuthentication").AddCookie("CookieAuthentication", options => {
+//     options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
+// });
+
+// For JWT Authentication
+var secretkey = builder.Configuration.GetValue<string>("SecretKey");
+builder.Services.AddAuthentication(options => 
+{
+    options.DefaultAuthenticateScheme =  JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultSignInScheme = JwtBearerDefaults.AuthenticationScheme;
+}
+// Or preferrably, just use
+// JwtBearerDefaults.AuthenticationScheme
+).AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(secretkey ?? string.Empty)),
+        ValidateLifetime = true,
+        ValidateAudience = false,
+        ValidateIssuer = false,
+        ClockSkew = TimeSpan.Zero
+    };
 });
 builder.Services.AddAuthorization(options =>
 {
@@ -72,6 +100,7 @@ app.MapPost("api/create-user", async (HttpContext context, [FromBody] User user)
 .Produces(StatusCodes.Status201Created)
 .Accepts<User>("application/json")
 .WithOpenApi()
+.WithTags("Auth-Cookies")
 ;
 
 app.MapGet("/employees", [Authorize(Policy = "MustBelongToHRDepartment")] (HttpContext context, ClaimsPrincipal claimsPrincipal) =>
@@ -83,13 +112,15 @@ app.MapGet("/employees", [Authorize(Policy = "MustBelongToHRDepartment")] (HttpC
         return Results.Ok("");
     }
     return Results.Unauthorized();
-});
+})
+.WithTags("Auth-Cookies");
 
 app.MapGet("/api/settings", [Authorize(Policy = "AdminOnly")] (HttpContext user) =>
 {
     var isAuthenticated = user.User;
     return Results.Ok("changes");
-});
+})
+.WithTags("Auth-Cookies");
 app.MapAuthenticate();
 app.Run();
 

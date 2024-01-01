@@ -35,7 +35,7 @@ namespace src.Controllers
                     });
                 }
                 return Results.Unauthorized();
-            }).WithTags("Auth");
+            }).WithTags("Auth-JWT");
 
         }
         private static string CreateToken(IEnumerable<Claim> claims, DateTime expiresAt, IConfiguration config)
